@@ -1,0 +1,99 @@
+version: '3'
+
+volumes:
+  selteq_task_local_postgres_data: {}
+  selteq_task_local_postgres_data_backups: {}
+
+services:
+  django: &django
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: selteq_task_local_django
+    container_name: selteq_task_local_django
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - .:/app:z
+    env_file:
+      - .env.local
+    ports:
+      - '8000:8000'
+    command: /start
+
+  postgres:
+    build:
+      context: .
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: selteq_task_production_postgres
+    container_name: selteq_task_local_postgres
+    volumes:
+      - selteq_task_local_postgres_data:/var/lib/postgresql/data
+      - selteq_task_local_postgres_data_backups:/backups
+    env_file:
+      - ./.envs/.local/.postgres
+
+  docs:
+    image: selteq_task_local_docs
+    container_name: selteq_task_local_docs
+    build:
+      context: .
+      dockerfile: ./compose/local/docs/Dockerfile
+    env_file:
+      - ./.envs/.local/.django
+    volumes:
+      - ./docs:/docs:z
+      - ./config:/app/config:z
+      - ./selteq_task:/app/selteq_task:z
+    ports:
+      - '9000:9000'
+    command: /start-docs
+
+  redis:
+    image: docker.io/redis:6
+    container_name: selteq_task_local_redis
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_example_celery_worker
+    command: /start-celeryworker
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env.local
+    depends_on:
+      - redis
+      - postgres
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_example_celery_beat
+    command: /start-celerybeat
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env.local
+    depends_on:
+      - redis
+      - postgres
+
+  flower:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_example_celery_flower
+    command: /start-flower
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env.local
+    ports:
+      - 5557:5555
+    depends_on:
+      - redis
+      - postgres

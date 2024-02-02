@@ -1,0 +1,71 @@
+version: '3'
+
+volumes:
+  selteq_api_local_postgres_data: {}
+
+services:
+  postgres:
+    build: ./postgres
+    container_name: selteq_api_local_postgres
+    volumes:
+      - selteq_api_local_postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=123
+      - POSTGRES_DB=selteqtask_db
+      - POSTGRES_HOST=postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - 5452:5452
+
+  redis:
+    image: redis
+    container_name: selteq_api_redis
+    command: --port 6379
+    ports:
+      - "6379:6379"
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_example_celery_worker
+    command: /start-celeryworker
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env.local
+    depends_on:
+      - redis
+      - postgres
+
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_example_celery_beat
+    command: /start-celerybeat
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env.local
+    depends_on:
+      - redis
+      - postgres
+
+  django: &django
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile_django
+    image: selteq_task_local_django
+    container_name: selteq_task_local_django
+    depends_on:
+      - postgres
+    volumes:
+      - .:/app:z
+    env_file:
+      - .env.local
+    ports:
+      - '8000:8000'
+
